@@ -87,4 +87,33 @@ class ExampleRobolectricTest {
         assertTrue(htmlContent.contains("<!DOCTYPE html>"))
         assertTrue(htmlContent.contains("OmniConvert"))
     }
+
+    @Test
+    fun `test 8k image upscaling and conversion`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val samples = com.example.engine.SampleAssetsProvider.getSampleFiles()
+        val imageSample = samples.first { it.name.endsWith(".png") }
+        val uri = imageSample.uriProvider(context)
+        assertNotNull(uri)
+
+        val outputDir = context.cacheDir
+        val options = com.example.model.ConversionOptions(
+            preset = com.example.model.QualityPreset.ULTRA_8K,
+            targetLongSidePx = 7680,
+            qualityPercent = 100,
+            upscaleSharpen = true
+        )
+
+        val resultFile = com.example.engine.ImageEngine.convertImage(
+            context = context,
+            inputUri = uri,
+            targetFormat = FormatRegistry.JPG,
+            options = options,
+            outputDir = outputDir,
+            onProgress = {}
+        )
+
+        assertTrue(resultFile.exists())
+        assertTrue(resultFile.length() > 0)
+    }
 }

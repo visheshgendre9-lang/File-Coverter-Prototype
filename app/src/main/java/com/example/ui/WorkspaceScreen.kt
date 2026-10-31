@@ -25,12 +25,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.NoiseAware
 import androidx.compose.material.icons.filled.Refresh
@@ -74,6 +76,7 @@ import com.example.model.FileCategory
 import com.example.model.FileFormat
 import com.example.model.JobStatus
 import com.example.model.QualityPreset
+import com.example.model.UpscaleResolution
 import com.example.ui.theme.BrightCyan
 import com.example.ui.theme.ElectricBlue
 import com.example.ui.theme.ErrorRose
@@ -466,27 +469,236 @@ fun WorkspaceScreen(
                         }
                     }
 
+                    val isImageConversion = state.inputFormat?.category == FileCategory.IMAGE ||
+                            state.targetFormat?.category == FileCategory.IMAGE ||
+                            (state.inputFormat?.extension == "pdf" && state.targetFormat?.extension in listOf("jpg", "jpeg", "png", "webp", "bmp"))
+
                     Text(
                         text = state.options.preset.description,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    // Fine-tune sliders if opened or Custom preset
-                    AnimatedVisibility(visible = showAdvancedSettings || state.options.preset == QualityPreset.CUSTOM) {
+                    // Image Quality & 8K Upscaling Section (Always shown for images, or when Fine Tune / Custom is open)
+                    if (isImageConversion || showAdvancedSettings || state.options.preset == QualityPreset.CUSTOM || state.options.preset == QualityPreset.ULTRA_8K) {
                         Column(
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                             modifier = Modifier.padding(top = 8.dp)
                         ) {
-                            // Quality Percentage
-                            Column {
+                            // Upscale / Resolution Selector
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Image & Media Quality", style = MaterialTheme.typography.labelMedium)
-                                    Text("${state.options.qualityPercent}%", fontWeight = FontWeight.Bold, color = BrightCyan)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = BrightCyan,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            "Output Resolution & Upscale",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                        )
+                                    }
+
+                                    val resLabel = when {
+                                        state.options.targetLongSidePx >= 7680 -> "8K (7680px)"
+                                        state.options.targetLongSidePx >= 3840 -> "4K (3840px)"
+                                        state.options.targetLongSidePx >= 2560 -> "2K (2560px)"
+                                        state.options.targetLongSidePx >= 1920 -> "FHD (1920px)"
+                                        state.options.scalePercent != 100 -> "${state.options.scalePercent}% Scale"
+                                        else -> "Original (1x)"
+                                    }
+                                    Text(
+                                        text = resLabel,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (state.options.targetLongSidePx >= 7680) WarningAmber else BrightCyan
+                                    )
                                 }
+
+                                // Quick Resolution Chips
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    UpscaleResolution.values().forEach { res ->
+                                        val isCurrent = (res.targetPx == 0 && state.options.targetLongSidePx == 0 && state.options.scalePercent == 100) ||
+                                                (res.targetPx > 0 && state.options.targetLongSidePx == res.targetPx)
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = if (isCurrent) {
+                                                if (res == UpscaleResolution.UHD_8K) WarningAmber else ElectricBlue
+                                            } else MaterialTheme.colorScheme.surface,
+                                            modifier = Modifier
+                                                .clickable {
+                                                    viewModel.updateOptions {
+                                                        it.copy(
+                                                            targetLongSidePx = res.targetPx,
+                                                            scalePercent = 100,
+                                                            upscaleSharpen = res.targetPx >= 1920,
+                                                            preset = when (res) {
+                                                                UpscaleResolution.UHD_8K -> QualityPreset.ULTRA_8K
+                                                                UpscaleResolution.UHD_4K -> QualityPreset.MAXIMUM
+                                                                UpscaleResolution.ORIGINAL -> QualityPreset.BALANCED
+                                                                else -> QualityPreset.CUSTOM
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                                .testTag("res_chip_${res.shortTag}")
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                if (res == UpscaleResolution.UHD_8K) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.AutoAwesome,
+                                                        contentDescription = null,
+                                                        tint = if (isCurrent) Color.Black else WarningAmber,
+                                                        modifier = Modifier.size(12.dp)
+                                                    )
+                                                }
+                                                Text(
+                                                    text = res.displayName,
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (isCurrent) {
+                                                            if (res == UpscaleResolution.UHD_8K) Color.Black else Color.White
+                                                        } else MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 8K / 4K Active Super-Resolution Callout
+                                if (state.options.targetLongSidePx >= 7680 || state.options.preset == QualityPreset.ULTRA_8K) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = WarningAmber.copy(alpha = 0.15f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, WarningAmber.copy(alpha = 0.4f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.AutoAwesome,
+                                                contentDescription = null,
+                                                tint = WarningAmber,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Text(
+                                                text = "8K Super-Resolution Active: Image will be upscaled up to 7680px with detail preservation.",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Detail & Edge Clarity Switch
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Edge & Texture Clarity Boost",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                                        )
+                                        Text(
+                                            "Unsharp mask prevents blurriness during 4K/8K upscaling",
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Switch(
+                                        checked = state.options.upscaleSharpen,
+                                        onCheckedChange = { checked ->
+                                            viewModel.updateOptions { it.copy(upscaleSharpen = checked) }
+                                        },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = ElectricBlue,
+                                            checkedTrackColor = BrightCyan.copy(alpha = 0.35f)
+                                        )
+                                    )
+                                }
+                            }
+
+                            // Image Quality Level
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.HighQuality,
+                                            contentDescription = null,
+                                            tint = BrightCyan,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text("Image Quality", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                    val qualityTag = when {
+                                        state.options.qualityPercent >= 98 -> "100% (Lossless / Master)"
+                                        state.options.qualityPercent >= 90 -> "${state.options.qualityPercent}% (Ultra)"
+                                        state.options.qualityPercent >= 80 -> "${state.options.qualityPercent}% (High)"
+                                        else -> "${state.options.qualityPercent}% (Compact)"
+                                    }
+                                    Text(qualityTag, fontWeight = FontWeight.Bold, color = BrightCyan, style = MaterialTheme.typography.labelSmall)
+                                }
+
+                                // Quick Quality Chips
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    listOf(100 to "Master", 95 to "Ultra", 85 to "High", 70 to "Normal").forEach { (q, label) ->
+                                        val isSel = state.options.qualityPercent == q
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = if (isSel) ElectricBlue else MaterialTheme.colorScheme.surface,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable {
+                                                    viewModel.updateOptions { it.copy(qualityPercent = q, preset = QualityPreset.CUSTOM) }
+                                                }
+                                        ) {
+                                            Text(
+                                                text = "$q% $label",
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontSize = 10.sp,
+                                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface
+                                                ),
+                                                modifier = Modifier.padding(vertical = 5.dp),
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                            )
+                                        }
+                                    }
+                                }
+
                                 Slider(
                                     value = state.options.qualityPercent.toFloat(),
                                     onValueChange = { q -> viewModel.updateOptions { it.copy(qualityPercent = q.toInt(), preset = QualityPreset.CUSTOM) } },
@@ -495,22 +707,24 @@ fun WorkspaceScreen(
                                 )
                             }
 
-                            // Resolution Scale
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("Resolution Scale", style = MaterialTheme.typography.labelMedium)
-                                    Text("${state.options.scalePercent}%", fontWeight = FontWeight.Bold, color = BrightCyan)
+                            // Custom Scale Slider (shown if Custom Resolution selected)
+                            if (state.options.targetLongSidePx == 0) {
+                                Column {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Custom Scale Factor", style = MaterialTheme.typography.labelMedium)
+                                        Text("${state.options.scalePercent}%", fontWeight = FontWeight.Bold, color = BrightCyan)
+                                    }
+                                    Slider(
+                                        value = state.options.scalePercent.toFloat(),
+                                        onValueChange = { s -> viewModel.updateOptions { it.copy(scalePercent = s.toInt(), targetLongSidePx = 0, preset = QualityPreset.CUSTOM) } },
+                                        valueRange = 25f..400f,
+                                        steps = 14,
+                                        colors = SliderDefaults.colors(thumbColor = BrightCyan, activeTrackColor = ElectricBlue)
+                                    )
                                 }
-                                Slider(
-                                    value = state.options.scalePercent.toFloat(),
-                                    onValueChange = { s -> viewModel.updateOptions { it.copy(scalePercent = s.toInt(), targetLongSidePx = 0, preset = QualityPreset.CUSTOM) } },
-                                    valueRange = 25f..200f,
-                                    steps = 6,
-                                    colors = SliderDefaults.colors(thumbColor = BrightCyan, activeTrackColor = ElectricBlue)
-                                )
                             }
 
                             // Audio Bitrate

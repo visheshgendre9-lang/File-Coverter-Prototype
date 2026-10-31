@@ -106,9 +106,9 @@ object ImageEngine {
 
     private fun applyTransformations(bitmap: Bitmap, options: ConversionOptions): Bitmap {
         val baseScale = if (options.targetLongSidePx > 0) {
-            // "At least 4K": never go below the original size, and enlarge by 4x at most.
+            // Support upscaling up to 8K (7680px) and up to 8x enlargement
             val longSide = maxOf(bitmap.width, bitmap.height).toFloat()
-            (options.targetLongSidePx / longSide).coerceIn(1f, 4f)
+            (options.targetLongSidePx / longSide).coerceIn(1f, 8f)
         } else {
             options.scalePercent / 100f
         }
@@ -129,10 +129,99 @@ object ImageEngine {
             }
         }
 
-        return if (targetW != bitmap.width || targetH != bitmap.height) {
+        // Safety cap (~36 megapixels for 8K resolution: e.g. 7680 x 4680)
+        val maxPixels = 36_000_000L
+        val requestedPixels = targetW.toLong() * targetH.toLong()
+        if (requestedPixels > maxPixels) {
+            val factor = kotlin.math.sqrt(maxPixels.toDouble() / requestedPixels.toDouble()).toFloat()
+            targetW = (targetW * factor).toInt().coerceAtLeast(1)
+            targetH = (targetH * factor).toInt().coerceAtLeast(1)
+        }
+
+        val scaled = if (targetW != bitmap.width || targetH != bitmap.height) {
             Bitmap.createScaledBitmap(bitmap, targetW, targetH, true)
         } else {
             bitmap
+        }
+
+        if (options.upscaleSharpen && (targetW > bitmap.width || options.targetLongSidePx >= 1920)) {
+            val enhanced = enhanceUpscaledDetails(scaled, 0.35f)
+            if (enhanced != scaled) {
+                if (scaled != bitmap) {
+                    scaled.recycle()
+                }
+                return enhanced
+            }
+        }
+        return scaled
+    }
+
+    /**
+     * Detail & Edge Clarity enhancement for upscaled images (up to 8K).
+     * Uses a memory-optimized 3-row rolling convolution kernel to sharpen contours
+     * and textures, preventing blurriness during super-resolution upscaling.
+     */
+    fun enhanceUpscaledDetails(source: Bitmap, amount: Float = 0.35f): Bitmap {
+        val w = source.width
+        val h = source.height
+        if (w <= 2 || h <= 2 || amount <= 0.05f) return source
+
+        return try {
+            val output = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val row0 = IntArray(w)
+            val row1 = IntArray(w)
+            val row2 = IntArray(w)
+            val outRow = IntArray(w)
+
+            source.getPixels(row0, 0, w, 0, 0, w, 1)
+            source.getPixels(row1, 0, w, 0, 1, w, 1)
+
+            // Copy first row as-is
+            output.setPixels(row0, 0, w, 0, 0, w, 1)
+
+            val factor = (amount * 0.6f).coerceIn(0.1f, 0.8f)
+
+            for (y in 1 until h - 1) {
+                source.getPixels(row2, 0, w, 0, y + 1, w, 1)
+
+                outRow[0] = row1[0]
+                outRow[w - 1] = row1[w - 1]
+
+                for (x in 1 until w - 1) {
+                    val pCenter = row1[x]
+                    val a = (pCenter ushr 24) and 0xFF
+                    val r = (pCenter ushr 16) and 0xFF
+                    val g = (pCenter ushr 8) and 0xFF
+                    val b = pCenter and 0xFF
+
+                    // 4-neighborhood average
+                    val pUp = row0[x]
+                    val pDown = row2[x]
+                    val pLeft = row1[x - 1]
+                    val pRight = row1[x + 1]
+
+                    val avgR = (((pUp ushr 16) and 0xFF) + ((pDown ushr 16) and 0xFF) + ((pLeft ushr 16) and 0xFF) + ((pRight ushr 16) and 0xFF)) shr 2
+                    val avgG = (((pUp ushr 8) and 0xFF) + ((pDown ushr 8) and 0xFF) + ((pLeft ushr 8) and 0xFF) + ((pRight ushr 8) and 0xFF)) shr 2
+                    val avgB = ((pUp and 0xFF) + (pDown and 0xFF) + (pLeft and 0xFF) + (pRight and 0xFF)) shr 2
+
+                    val newR = (r + (r - avgR) * factor).toInt().coerceIn(0, 255)
+                    val newG = (g + (g - avgG) * factor).toInt().coerceIn(0, 255)
+                    val newB = (b + (b - avgB) * factor).toInt().coerceIn(0, 255)
+
+                    outRow[x] = (a shl 24) or (newR shl 16) or (newG shl 8) or newB
+                }
+
+                output.setPixels(outRow, 0, w, 0, y, w, 1)
+
+                System.arraycopy(row1, 0, row0, 0, w)
+                System.arraycopy(row2, 0, row1, 0, w)
+            }
+
+            // Copy last row as-is
+            output.setPixels(row1, 0, w, 0, h - 1, w, 1)
+            output
+        } catch (_: OutOfMemoryError) {
+            source
         }
     }
 

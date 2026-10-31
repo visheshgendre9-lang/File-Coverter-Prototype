@@ -104,8 +104,8 @@ object DocumentEngine {
                 (options.pdfRenderDpi / 72f) * (options.scalePercent / 100f)
             }
 
-            // Safety cap (~24 megapixels) so very large pages cannot run the phone out of memory.
-            val maxPixels = 24_000_000f
+            // Safety cap (~36 megapixels for 8K) so very large pages cannot run the phone out of memory.
+            val maxPixels = 36_000_000f
             val requestedPixels = page.width.toFloat() * factor * page.height.toFloat() * factor
             if (requestedPixels > maxPixels) {
                 factor *= kotlin.math.sqrt(maxPixels / requestedPixels)
@@ -114,12 +114,23 @@ object DocumentEngine {
             val width = (page.width * factor).toInt().coerceAtLeast(100)
             val height = (page.height * factor).toInt().coerceAtLeast(100)
 
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
+            val rawBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(rawBitmap)
             canvas.drawColor(Color.WHITE) // PDF backgrounds are white
 
-            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+            page.render(rawBitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
             page.close()
+
+            // Apply detail clarity enhancement for high-res / 8K rendering if enabled
+            val bitmap = if (options.upscaleSharpen && (options.targetLongSidePx >= 3840 || width >= 3840)) {
+                val enhanced = ImageEngine.enhanceUpscaledDetails(rawBitmap, 0.3f)
+                if (enhanced != rawBitmap) {
+                    rawBitmap.recycle()
+                }
+                enhanced
+            } else {
+                rawBitmap
+            }
 
             onProgress(0.8f)
             val out = FileOutputStream(outputFile)

@@ -12,11 +12,20 @@ enum class FileCategory(val displayName: String, val iconName: String) {
 }
 
 enum class QualityPreset(val displayName: String, val description: String) {
-    MAXIMUM("Maximum Quality", "Preserves original resolution & highest fidelity. Larger file size."),
+    ULTRA_8K("8K Ultra Super-Res", "Upscales images up to 8K (7680px) with smart detail clarity enhancement."),
+    MAXIMUM("Maximum Quality", "Preserves 4K (3840px) resolution & highest fidelity. Larger file size."),
     HIGH("High Quality", "Near-lossless output with light compression."),
     BALANCED("Balanced", "Optimal compromise between clarity and space savings (Recommended)."),
     SMALLER("Smaller File Size", "Higher compression suited for quick web sharing and emailing."),
     CUSTOM("Custom Settings", "Manually fine-tune bitrate, resolution, and encoding.")
+}
+
+enum class UpscaleResolution(val displayName: String, val targetPx: Int, val shortTag: String) {
+    ORIGINAL("Original", 0, "1x"),
+    FHD("1080p FHD", 1920, "FHD"),
+    QHD("2K QHD", 2560, "2K"),
+    UHD_4K("4K UHD", 3840, "4K"),
+    UHD_8K("8K Ultra", 7680, "8K")
 }
 
 data class FileFormat(
@@ -31,9 +40,10 @@ data class FileFormat(
 data class ConversionOptions(
     val preset: QualityPreset = QualityPreset.BALANCED,
     val qualityPercent: Int = 85,          // 1 - 100
-    val scalePercent: Int = 100,           // 25 - 200%
-    val pdfRenderDpi: Int = 150,           // 72, 100, 150, 220, 300 DPI
-    val targetLongSidePx: Int = 0,         // 0 = off, 3840 = 4K (used by Maximum Quality)
+    val scalePercent: Int = 100,           // 25 - 400%
+    val pdfRenderDpi: Int = 150,           // 72, 100, 150, 220, 300, 400 DPI
+    val targetLongSidePx: Int = 0,         // 0 = off, 1920 = FHD, 2560 = 2K, 3840 = 4K, 7680 = 8K
+    val upscaleSharpen: Boolean = true,    // Detail clarity / unsharp enhancement for upscaled images
     val customWidth: Int? = null,
     val customHeight: Int? = null,
     val maintainAspectRatio: Boolean = true,

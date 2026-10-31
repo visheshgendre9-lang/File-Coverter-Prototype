@@ -338,14 +338,27 @@ class ConverterViewModel(application: Application) : AndroidViewModel(applicatio
         base: ConversionOptions = ConversionOptions()
     ): ConversionOptions {
         return when (preset) {
+            QualityPreset.ULTRA_8K -> base.copy(
+                preset = preset,
+                qualityPercent = 100,
+                scalePercent = 100,
+                pdfRenderDpi = 400,
+                targetLongSidePx = 7680, // 8K Ultra-HD
+                upscaleSharpen = true,
+                compressionLevel = 1,
+                audioBitrateKbps = 320,
+                videoResolution = "4K"
+            )
             QualityPreset.MAXIMUM -> base.copy(
                 preset = preset,
                 qualityPercent = 100,
                 scalePercent = 100,
                 pdfRenderDpi = 300,
                 targetLongSidePx = 3840, // 4K
+                upscaleSharpen = true,
                 compressionLevel = 1,
-                audioBitrateKbps = 320
+                audioBitrateKbps = 320,
+                videoResolution = "4K"
             )
             QualityPreset.HIGH -> base.copy(
                 preset = preset,
