@@ -1,47 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <!-- Back document sheet -->
-    <path
-        android:pathData="M34,26 L62,26 L74,38 L74,76 C74,79.3 71.3,82 68,82 L34,82 C30.7,82 28,79.3 28,76 L28,32 C28,28.7 30.7,26 34,26 Z"
-        android:fillColor="#1E3A8A" />
-
-    <!-- Front document sheet -->
-    <path
-        android:pathData="M38,30 L62,30 L70,38 L70,74 C70,76.2 68.2,78 66,78 L38,78 C35.8,78 34,76.2 34,74 L34,34 C34,31.8 35.8,30 38,30 Z"
-        android:fillColor="#2563EB" />
-
-    <!-- Folded corner -->
-    <path
-        android:pathData="M62,30 L70,38 L62,38 Z"
-        android:fillColor="#60A5FA" />
-
-    <!-- Conversion Arrow Loop Top -->
-    <path
-        android:pathData="M42,48 L62,48 C64.2,48 66,49.8 66,52 L66,54"
-        android:strokeColor="#38BDF8"
-        android:strokeWidth="3.5"
-        android:strokeLineCap="round" />
-    <path
-        android:pathData="M60,43 L67,48 L60,53 Z"
-        android:fillColor="#38BDF8" />
-
-    <!-- Conversion Arrow Loop Bottom -->
-    <path
-        android:pathData="M66,60 L46,60 C43.8,60 42,58.2 42,56 L42,54"
-        android:strokeColor="#06B6D4"
-        android:strokeWidth="3.5"
-        android:strokeLineCap="round" />
-    <path
-        android:pathData="M48,65 L41,60 L48,55 Z"
-        android:fillColor="#06B6D4" />
-
-    <!-- Center sparkle accent -->
-    <path
-        android:pathData="M54,51 L55.5,53.5 L58,54 L55.5,54.5 L54,57 L52.5,54.5 L50,54 L52.5,53.5 Z"
-        android:fillColor="#FFFFFF" />
-</vector>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="68dp"
+        android:height="68dp"
+        android:drawable="@drawable/ic_launcher_asset"
+        android:gravity="center" />
+</layer-list>
