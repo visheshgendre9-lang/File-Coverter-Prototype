@@ -20,6 +20,10 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    ndk {
+      abiFilters += listOf("x86_64", "arm64-v8a", "armeabi-v7a")
+    }
   }
 
   // Do not remove or modify these signingConfigs. They are necessary for building, installing,
