@@ -95,8 +95,19 @@ object DocumentEngine {
             val page = renderer.openPage(0) // Render first page
             onProgress(0.5f)
 
-            val width = (page.width * (options.scalePercent / 100f)).toInt().coerceAtLeast(100)
-            val height = (page.height * (options.scalePercent / 100f)).toInt().coerceAtLeast(100)
+            // PDF pages are measured in points (1/72 inch), so page.width x page.height is only
+            // 72 DPI. Render at the requested DPI instead, then apply the optional scale slider.
+            var factor = (options.pdfRenderDpi / 72f) * (options.scalePercent / 100f)
+
+            // Safety cap (~24 megapixels) so very large pages cannot run the phone out of memory.
+            val maxPixels = 24_000_000f
+            val requestedPixels = page.width.toFloat() * factor * page.height.toFloat() * factor
+            if (requestedPixels > maxPixels) {
+                factor *= kotlin.math.sqrt(maxPixels / requestedPixels)
+            }
+
+            val width = (page.width * factor).toInt().coerceAtLeast(100)
+            val height = (page.height * factor).toInt().coerceAtLeast(100)
 
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)

@@ -40,7 +40,9 @@ object VoiceEnhancerEngine {
         inputUri: Uri,
         config: VoiceEnhanceConfig,
         outputDir: File,
-        onProgress: (Float, String) -> Unit
+        onProgress: (Float, String) -> Unit,
+        outputExtension: String = "wav",
+        bitrateKbps: Int = 192
     ): File {
         onProgress(0.1f, "Decoding audio stream...")
 
@@ -50,21 +52,27 @@ object VoiceEnhancerEngine {
         onProgress(0.35f, "Removing background noise & rumble...")
         // 1. High-pass filter (remove rumble under 85Hz)
         var processed = if (config.removeLowRumble) {
-            applyHighPassFilter(pcmSamples, sampleRate, 85.0)
+            perChannel(pcmSamples, channels) { ch ->
+                applyHighPassFilter(ch, sampleRate, 85.0)
+            }
         } else {
             pcmSamples
         }
 
         // 2. Low-pass filter (remove hiss above 7500Hz)
         if (config.removeHighHiss) {
-            processed = applyLowPassFilter(processed, sampleRate, 7500.0)
+            processed = perChannel(processed, channels) { ch ->
+                applyLowPassFilter(ch, sampleRate, 7500.0)
+            }
         }
 
         onProgress(0.55f, "Applying vocal presence & clarity exciter...")
         // 3. Peaking Bell Filter at 3000Hz for speech clarity
         if (config.clarityBoost > 0.05f) {
             val boostGainDb = 2.0 + (config.clarityBoost * 6.0) // +2dB to +8dB
-            processed = applyPeakingFilter(processed, sampleRate, 3000.0, 1.2, boostGainDb)
+            processed = perChannel(processed, channels) { ch ->
+                applyPeakingFilter(ch, sampleRate, 3000.0, 1.2, boostGainDb)
+            }
         }
 
         onProgress(0.75f, "Gating ambient background sound...")
@@ -80,11 +88,46 @@ object VoiceEnhancerEngine {
         }
 
         onProgress(0.95f, "Writing enhanced audio...")
-        val outputFile = File(outputDir, "enhanced_voice_${System.currentTimeMillis()}.wav")
-        writeWavFile(processed, sampleRate, channels, outputFile)
+        val cleanExt = outputExtension.lowercase().removePrefix(".")
+        val wantsWav = cleanExt == "wav"
+
+        val targetFile = if (wantsWav) {
+            File(outputDir, "enhanced_voice_${System.currentTimeMillis()}.wav")
+        } else {
+            val ext = if (cleanExt in listOf("m4a", "aac", "mp4")) cleanExt else "m4a"
+            File(outputDir, "enhanced_voice_${System.currentTimeMillis()}.$ext")
+        }
+
+        if (wantsWav) {
+            writeWavFile(processed, sampleRate, channels, targetFile)
+            onProgress(1.0f, "Voice Enhancement Complete")
+            return targetFile
+        }
+
+        val pcmByteBuffer = ByteBuffer.allocate(processed.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+        for (s in processed) {
+            pcmByteBuffer.putShort(s)
+        }
+        val pcmBytes = pcmByteBuffer.array()
+
+        val encoded = AudioVideoEngine.encodePcmToAacM4a(
+            pcmData = pcmBytes,
+            sampleRate = sampleRate,
+            channels = channels,
+            bitrateKbps = bitrateKbps,
+            outputFile = targetFile
+        )
+
+        val finalOutput = if (encoded && targetFile.exists() && targetFile.length() > 0) {
+            targetFile
+        } else {
+            val fallbackWav = File(outputDir, "enhanced_voice_${System.currentTimeMillis()}.wav")
+            writeWavFile(processed, sampleRate, channels, fallbackWav)
+            fallbackWav
+        }
 
         onProgress(1.0f, "Voice Enhancement Complete")
-        return outputFile
+        return finalOutput
     }
 
     private fun decodeAudioToPcm(context: Context, inputUri: Uri): Triple<ShortArray, Int, Int> {
@@ -110,10 +153,10 @@ object VoiceEnhancerEngine {
             }
 
             val mime = audioFormat.getString(MediaFormat.KEY_MIME) ?: "audio/raw"
-            val sampleRate = if (audioFormat.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
+            var sampleRate = if (audioFormat.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
                 audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             } else 44100
-            val channelCount = if (audioFormat.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
+            var channelCount = if (audioFormat.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
                 audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
             } else 1
 
@@ -142,22 +185,43 @@ object VoiceEnhancerEngine {
                 }
 
                 var outputBufIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
-                while (outputBufIndex >= 0) {
-                    val outBuf = codec.getOutputBuffer(outputBufIndex)
-                    if (outBuf != null && bufferInfo.size > 0) {
-                        outBuf.position(bufferInfo.offset)
-                        outBuf.limit(bufferInfo.offset + bufferInfo.size)
-                        val chunk = ByteArray(bufferInfo.size)
-                        outBuf.get(chunk)
-                        byteStream.write(chunk)
-                    }
-                    codec.releaseOutputBuffer(outputBufIndex, false)
-                    if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                        isEos = true
-                        break
+                while (outputBufIndex >= 0 || outputBufIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    if (outputBufIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        val newFormat = codec.outputFormat
+                        if (newFormat.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
+                            sampleRate = newFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                        }
+                        if (newFormat.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
+                            channelCount = newFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                        }
+                    } else if (outputBufIndex >= 0) {
+                        val outBuf = codec.getOutputBuffer(outputBufIndex)
+                        if (outBuf != null && bufferInfo.size > 0) {
+                            outBuf.position(bufferInfo.offset)
+                            outBuf.limit(bufferInfo.offset + bufferInfo.size)
+                            val chunk = ByteArray(bufferInfo.size)
+                            outBuf.get(chunk)
+                            byteStream.write(chunk)
+                        }
+                        codec.releaseOutputBuffer(outputBufIndex, false)
+                        if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                            isEos = true
+                            break
+                        }
                     }
                     outputBufIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
                 }
+            }
+
+            try {
+                val finalFormat = codec.outputFormat
+                if (finalFormat.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
+                    sampleRate = finalFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                }
+                if (finalFormat.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
+                    channelCount = finalFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                }
+            } catch (_: Exception) {
             }
 
             codec.stop()
@@ -173,6 +237,41 @@ object VoiceEnhancerEngine {
         } finally {
             extractor.release()
         }
+    }
+
+    private inline fun perChannel(
+        input: ShortArray,
+        channels: Int,
+        filter: (ShortArray) -> ShortArray
+    ): ShortArray {
+        if (channels <= 1 || input.isEmpty()) {
+            return filter(input)
+        }
+        val numFrames = input.size / channels
+        val channelData = Array(channels) { ShortArray(numFrames) }
+
+        // De-interleave
+        for (frame in 0 until numFrames) {
+            val base = frame * channels
+            for (ch in 0 until channels) {
+                channelData[ch][frame] = input[base + ch]
+            }
+        }
+
+        // Apply filter per channel
+        for (ch in 0 until channels) {
+            channelData[ch] = filter(channelData[ch])
+        }
+
+        // Re-interleave
+        val output = ShortArray(input.size)
+        for (frame in 0 until numFrames) {
+            val base = frame * channels
+            for (ch in 0 until channels) {
+                output[base + ch] = channelData[ch][frame]
+            }
+        }
+        return output
     }
 
     private fun readRawPcmOrWav(context: Context, inputUri: Uri): Triple<ShortArray, Int, Int> {

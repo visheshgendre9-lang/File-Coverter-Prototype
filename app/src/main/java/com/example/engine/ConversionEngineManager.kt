@@ -65,7 +65,9 @@ class ConversionEngineManager(private val context: Context) {
                             inputUri = inputUri,
                             config = voiceConfig,
                             outputDir = convertedOutputDir,
-                            onProgress = { p, msg -> onProgress(p, msg) }
+                            onProgress = { p, msg -> onProgress(p, msg) },
+                            outputExtension = job.targetFormat.extension,
+                            bitrateKbps = job.options.audioBitrateKbps
                         )
                     } else {
                         onProgress(0.2f, "Processing media stream...")
