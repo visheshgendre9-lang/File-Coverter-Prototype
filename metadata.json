@@ -1,0 +1,6 @@
+{
+  "name": "OmniConvert",
+  "description": "Professional all-in-one universal file converter platform supporting images, audio, video, documents, archives, and structured data with advanced quality controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
