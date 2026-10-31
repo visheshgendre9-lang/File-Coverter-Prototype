@@ -343,6 +343,7 @@ class ConverterViewModel(application: Application) : AndroidViewModel(applicatio
                 qualityPercent = 100,
                 scalePercent = 100,
                 pdfRenderDpi = 300,
+                targetLongSidePx = 3840, // 4K
                 compressionLevel = 1,
                 audioBitrateKbps = 320
             )
@@ -351,6 +352,7 @@ class ConverterViewModel(application: Application) : AndroidViewModel(applicatio
                 qualityPercent = 92,
                 scalePercent = 100,
                 pdfRenderDpi = 220,
+                targetLongSidePx = 0,
                 compressionLevel = 4,
                 audioBitrateKbps = 256
             )
@@ -359,6 +361,7 @@ class ConverterViewModel(application: Application) : AndroidViewModel(applicatio
                 qualityPercent = 85,
                 scalePercent = 100,
                 pdfRenderDpi = 150,
+                targetLongSidePx = 0,
                 compressionLevel = 6,
                 audioBitrateKbps = 192
             )
@@ -367,6 +370,7 @@ class ConverterViewModel(application: Application) : AndroidViewModel(applicatio
                 qualityPercent = 65,
                 scalePercent = 75,
                 pdfRenderDpi = 100,
+                targetLongSidePx = 0,
                 compressionLevel = 9,
                 audioBitrateKbps = 128
             )

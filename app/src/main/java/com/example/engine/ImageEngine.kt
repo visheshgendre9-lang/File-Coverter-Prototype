@@ -105,8 +105,15 @@ object ImageEngine {
     }
 
     private fun applyTransformations(bitmap: Bitmap, options: ConversionOptions): Bitmap {
-        var targetW = (bitmap.width * (options.scalePercent / 100f)).toInt().coerceAtLeast(1)
-        var targetH = (bitmap.height * (options.scalePercent / 100f)).toInt().coerceAtLeast(1)
+        val baseScale = if (options.targetLongSidePx > 0) {
+            // "At least 4K": never go below the original size, and enlarge by 4x at most.
+            val longSide = maxOf(bitmap.width, bitmap.height).toFloat()
+            (options.targetLongSidePx / longSide).coerceIn(1f, 4f)
+        } else {
+            options.scalePercent / 100f
+        }
+        var targetW = (bitmap.width * baseScale).toInt().coerceAtLeast(1)
+        var targetH = (bitmap.height * baseScale).toInt().coerceAtLeast(1)
 
         if (options.customWidth != null && options.customWidth > 0) {
             targetW = options.customWidth

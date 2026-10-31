@@ -96,8 +96,13 @@ object DocumentEngine {
             onProgress(0.5f)
 
             // PDF pages are measured in points (1/72 inch), so page.width x page.height is only
-            // 72 DPI. Render at the requested DPI instead, then apply the optional scale slider.
-            var factor = (options.pdfRenderDpi / 72f) * (options.scalePercent / 100f)
+            // 72 DPI. Either fit the long side to a target size (4K = 3840 px), or render at the
+            // requested DPI and apply the optional scale slider.
+            var factor = if (options.targetLongSidePx > 0) {
+                options.targetLongSidePx / maxOf(page.width, page.height).toFloat()
+            } else {
+                (options.pdfRenderDpi / 72f) * (options.scalePercent / 100f)
+            }
 
             // Safety cap (~24 megapixels) so very large pages cannot run the phone out of memory.
             val maxPixels = 24_000_000f

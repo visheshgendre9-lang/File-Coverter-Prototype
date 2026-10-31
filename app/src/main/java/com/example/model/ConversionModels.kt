@@ -33,6 +33,7 @@ data class ConversionOptions(
     val qualityPercent: Int = 85,          // 1 - 100
     val scalePercent: Int = 100,           // 25 - 200%
     val pdfRenderDpi: Int = 150,           // 72, 100, 150, 220, 300 DPI
+    val targetLongSidePx: Int = 0,         // 0 = off, 3840 = 4K (used by Maximum Quality)
     val customWidth: Int? = null,
     val customHeight: Int? = null,
     val maintainAspectRatio: Boolean = true,

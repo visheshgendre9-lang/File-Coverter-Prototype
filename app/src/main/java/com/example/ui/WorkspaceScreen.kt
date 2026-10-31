@@ -506,7 +506,7 @@ fun WorkspaceScreen(
                                 }
                                 Slider(
                                     value = state.options.scalePercent.toFloat(),
-                                    onValueChange = { s -> viewModel.updateOptions { it.copy(scalePercent = s.toInt(), preset = QualityPreset.CUSTOM) } },
+                                    onValueChange = { s -> viewModel.updateOptions { it.copy(scalePercent = s.toInt(), targetLongSidePx = 0, preset = QualityPreset.CUSTOM) } },
                                     valueRange = 25f..200f,
                                     steps = 6,
                                     colors = SliderDefaults.colors(thumbColor = BrightCyan, activeTrackColor = ElectricBlue)
