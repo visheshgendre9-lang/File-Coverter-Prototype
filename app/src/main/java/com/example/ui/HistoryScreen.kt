@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -142,6 +143,9 @@ fun HistoryScreen(
             items(filteredList, key = { it.id }) { record ->
                 HistoryRecordCard(
                     record = record,
+                    onEdit = if (record.targetFormat.equals("DOCX", ignoreCase = true) && record.resultPath != null) {
+                        { viewModel.openDocxForEditing(Uri.parse(record.resultPath), record.fileName) }
+                    } else null,
                     onShare = {
                         record.resultPath?.let { path ->
                             val uri = Uri.parse(path)
@@ -163,6 +167,7 @@ fun HistoryScreen(
 @Composable
 fun HistoryRecordCard(
     record: ConversionEntity,
+    onEdit: (() -> Unit)? = null,
     onShare: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -246,6 +251,11 @@ fun HistoryRecordCard(
                 }
 
                 Row {
+                    if (onEdit != null) {
+                        IconButton(onClick = onEdit, modifier = Modifier.size(32.dp).testTag("edit_history_item_${record.id}")) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit in DOCX Editor", tint = BrightCyan, modifier = Modifier.size(18.dp))
+                        }
+                    }
                     if (record.resultPath != null) {
                         IconButton(onClick = onShare, modifier = Modifier.size(32.dp)) {
                             Icon(Icons.Default.Share, contentDescription = "Share", tint = ElectricBlue, modifier = Modifier.size(18.dp))

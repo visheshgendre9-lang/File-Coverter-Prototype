@@ -116,4 +116,47 @@ class ExampleRobolectricTest {
         assertTrue(resultFile.exists())
         assertTrue(resultFile.length() > 0)
     }
+
+    @Test
+    fun `test docx editor save read and export`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val outputDir = context.cacheDir
+        val docxFile = java.io.File(outputDir, "test_doc.docx")
+
+        val sampleText = "# Meeting Notes\n\n• Discussion item 1\n• Discussion item 2\n\nNext steps are prioritized."
+        val paragraphs = com.example.engine.DocxEditorEngine.createParagraphsFromPlainText(
+            text = sampleText,
+            isBold = false,
+            isItalic = false,
+            alignment = "left"
+        )
+        assertTrue(paragraphs.isNotEmpty())
+
+        // Save to DOCX
+        com.example.engine.DocxEditorEngine.saveDocx(paragraphs, docxFile)
+        assertTrue(docxFile.exists())
+        assertTrue(docxFile.length() > 0)
+
+        // Read back from DOCX
+        val docModel = com.example.engine.DocxEditorEngine.readDocxFromStream(
+            java.io.FileInputStream(docxFile),
+            "test_doc.docx"
+        )
+        assertNotNull(docModel)
+        assertTrue(docModel.fullText.contains("Meeting Notes"))
+        assertTrue(docModel.fullText.contains("Discussion item 1"))
+
+        // Export to PDF
+        val pdfFile = java.io.File(outputDir, "test_doc.pdf")
+        com.example.engine.DocxEditorEngine.exportToPdf(docModel, pdfFile)
+        assertTrue(pdfFile.exists())
+        assertTrue(pdfFile.length() > 0)
+
+        // Export to HTML
+        val htmlFile = java.io.File(outputDir, "test_doc.html")
+        com.example.engine.DocxEditorEngine.exportToHtml(docModel, htmlFile)
+        assertTrue(htmlFile.exists())
+        assertTrue(htmlFile.readText().contains("Meeting Notes"))
+    }
 }
+

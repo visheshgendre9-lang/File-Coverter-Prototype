@@ -89,104 +89,109 @@ fun OmniConvertApp(viewModel: ConverterViewModel) {
     OmniConvertTheme(darkTheme = isDark) {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = when (currentScreen) {
-                                AppNavScreen.HOME -> "OmniConvert"
-                                AppNavScreen.WORKSPACE -> "Workspace"
-                                AppNavScreen.BATCH -> "Batch Queue"
-                                AppNavScreen.HISTORY -> "History"
-                                AppNavScreen.SETTINGS -> "Settings"
-                            },
-                            fontWeight = FontWeight.Bold
-                        )
-                    },
-                    navigationIcon = {
-                        if (currentScreen != AppNavScreen.HOME) {
-                            IconButton(onClick = { viewModel.navigateTo(AppNavScreen.HOME) }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                            }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        titleContentColor = MaterialTheme.colorScheme.onBackground
-                    )
-                )
-            },
-            bottomBar = {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp,
-                    modifier = Modifier.testTag("bottom_nav_bar")
-                ) {
-                    NavigationBarItem(
-                        selected = currentScreen == AppNavScreen.HOME,
-                        onClick = { viewModel.navigateTo(AppNavScreen.HOME) },
-                        icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                        label = { Text("Home") },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = ElectricBlue,
-                            indicatorColor = ElectricBlue.copy(alpha = 0.15f)
-                        )
-                    )
-
-                    NavigationBarItem(
-                        selected = currentScreen == AppNavScreen.WORKSPACE,
-                        onClick = { viewModel.navigateTo(AppNavScreen.WORKSPACE) },
-                        icon = { Icon(Icons.Default.Transform, contentDescription = "Workspace") },
-                        label = { Text("Workspace") },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = ElectricBlue,
-                            indicatorColor = ElectricBlue.copy(alpha = 0.15f)
-                        )
-                    )
-
-                    NavigationBarItem(
-                        selected = currentScreen == AppNavScreen.BATCH,
-                        onClick = { viewModel.navigateTo(AppNavScreen.BATCH) },
-                        icon = {
-                            BadgedBox(
-                                badge = {
-                                    if (batchState.queue.isNotEmpty()) {
-                                        Badge(containerColor = BrightCyan) {
-                                            Text("${batchState.queue.size}")
-                                        }
-                                    }
+                if (currentScreen != AppNavScreen.DOCX_EDITOR) {
+                    TopAppBar(
+                        title = {
+                            Text(
+                                text = when (currentScreen) {
+                                    AppNavScreen.HOME -> "OmniConvert"
+                                    AppNavScreen.WORKSPACE -> "Workspace"
+                                    AppNavScreen.BATCH -> "Batch Queue"
+                                    AppNavScreen.HISTORY -> "History"
+                                    AppNavScreen.SETTINGS -> "Settings"
+                                    AppNavScreen.DOCX_EDITOR -> "Word DOCX Editor"
+                                },
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        navigationIcon = {
+                            if (currentScreen != AppNavScreen.HOME) {
+                                IconButton(onClick = { viewModel.navigateTo(AppNavScreen.HOME) }) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                                 }
-                            ) {
-                                Icon(Icons.Default.DynamicFeed, contentDescription = "Batch")
                             }
                         },
-                        label = { Text("Batch") },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = ElectricBlue,
-                            indicatorColor = ElectricBlue.copy(alpha = 0.15f)
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            titleContentColor = MaterialTheme.colorScheme.onBackground
                         )
                     )
+                }
+            },
+            bottomBar = {
+                if (currentScreen != AppNavScreen.DOCX_EDITOR) {
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 8.dp,
+                        modifier = Modifier.testTag("bottom_nav_bar")
+                    ) {
+                        NavigationBarItem(
+                            selected = currentScreen == AppNavScreen.HOME,
+                            onClick = { viewModel.navigateTo(AppNavScreen.HOME) },
+                            icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                            label = { Text("Home") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = ElectricBlue,
+                                indicatorColor = ElectricBlue.copy(alpha = 0.15f)
+                            )
+                        )
 
-                    NavigationBarItem(
-                        selected = currentScreen == AppNavScreen.HISTORY,
-                        onClick = { viewModel.navigateTo(AppNavScreen.HISTORY) },
-                        icon = { Icon(Icons.Default.History, contentDescription = "History") },
-                        label = { Text("History") },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = ElectricBlue,
-                            indicatorColor = ElectricBlue.copy(alpha = 0.15f)
+                        NavigationBarItem(
+                            selected = currentScreen == AppNavScreen.WORKSPACE,
+                            onClick = { viewModel.navigateTo(AppNavScreen.WORKSPACE) },
+                            icon = { Icon(Icons.Default.Transform, contentDescription = "Workspace") },
+                            label = { Text("Workspace") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = ElectricBlue,
+                                indicatorColor = ElectricBlue.copy(alpha = 0.15f)
+                            )
                         )
-                    )
 
-                    NavigationBarItem(
-                        selected = currentScreen == AppNavScreen.SETTINGS,
-                        onClick = { viewModel.navigateTo(AppNavScreen.SETTINGS) },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings") },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = ElectricBlue,
-                            indicatorColor = ElectricBlue.copy(alpha = 0.15f)
+                        NavigationBarItem(
+                            selected = currentScreen == AppNavScreen.BATCH,
+                            onClick = { viewModel.navigateTo(AppNavScreen.BATCH) },
+                            icon = {
+                                BadgedBox(
+                                    badge = {
+                                        if (batchState.queue.isNotEmpty()) {
+                                            Badge(containerColor = BrightCyan) {
+                                                Text("${batchState.queue.size}")
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Icon(Icons.Default.DynamicFeed, contentDescription = "Batch")
+                                }
+                            },
+                            label = { Text("Batch") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = ElectricBlue,
+                                indicatorColor = ElectricBlue.copy(alpha = 0.15f)
+                            )
                         )
-                    )
+
+                        NavigationBarItem(
+                            selected = currentScreen == AppNavScreen.HISTORY,
+                            onClick = { viewModel.navigateTo(AppNavScreen.HISTORY) },
+                            icon = { Icon(Icons.Default.History, contentDescription = "History") },
+                            label = { Text("History") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = ElectricBlue,
+                                indicatorColor = ElectricBlue.copy(alpha = 0.15f)
+                            )
+                        )
+
+                        NavigationBarItem(
+                            selected = currentScreen == AppNavScreen.SETTINGS,
+                            onClick = { viewModel.navigateTo(AppNavScreen.SETTINGS) },
+                            icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                            label = { Text("Settings") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = ElectricBlue,
+                                indicatorColor = ElectricBlue.copy(alpha = 0.15f)
+                            )
+                        )
+                    }
                 }
             }
         ) { paddingValues ->
@@ -213,6 +218,9 @@ fun OmniConvertApp(viewModel: ConverterViewModel) {
                         viewModel = viewModel
                     )
                     AppNavScreen.SETTINGS -> SettingsScreen(
+                        viewModel = viewModel
+                    )
+                    AppNavScreen.DOCX_EDITOR -> DocxEditorScreen(
                         viewModel = viewModel
                     )
                 }

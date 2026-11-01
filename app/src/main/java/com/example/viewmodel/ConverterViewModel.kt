@@ -2,12 +2,14 @@ package com.example.viewmodel
 
 import android.app.Application
 import android.net.Uri
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
 import com.example.data.ConversionEntity
 import com.example.data.HistoryRepository
 import com.example.engine.ConversionEngineManager
+import com.example.engine.DocxEditorEngine
 import com.example.engine.FormatRegistry
 import com.example.engine.SampleFileItem
 import com.example.model.ConversionJob
@@ -16,12 +18,15 @@ import com.example.model.FileCategory
 import com.example.model.FileFormat
 import com.example.model.JobStatus
 import com.example.model.QualityPreset
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
 enum class AppNavScreen {
@@ -29,8 +34,30 @@ enum class AppNavScreen {
     WORKSPACE,
     BATCH,
     HISTORY,
-    SETTINGS
+    SETTINGS,
+    DOCX_EDITOR
 }
+
+data class DocxEditorUiState(
+    val uri: Uri? = null,
+    val documentTitle: String = "Document.docx",
+    val textContent: String = "",
+    val paragraphs: List<DocxEditorEngine.DocxParagraph> = emptyList(),
+    val isBold: Boolean = false,
+    val isItalic: Boolean = false,
+    val isUnderline: Boolean = false,
+    val alignment: String = "left",
+    val activeHeading: String = "Normal",
+    val wordCount: Int = 0,
+    val charCount: Int = 0,
+    val isImageBasedDocx: Boolean = false,
+    val isLoading: Boolean = false,
+    val isSaving: Boolean = false,
+    val statusMessage: String? = null,
+    val savedFileUri: Uri? = null,
+    val savedFilePath: String? = null,
+    val isModified: Boolean = false
+)
 
 data class WorkspaceUiState(
     val selectedFileName: String? = null,
@@ -70,6 +97,10 @@ class ConverterViewModel(application: Application) : AndroidViewModel(applicatio
     // Batch State
     private val _batchState = MutableStateFlow(BatchUiState())
     val batchState: StateFlow<BatchUiState> = _batchState.asStateFlow()
+
+    // DOCX Editor State
+    private val _docxEditorState = MutableStateFlow(DocxEditorUiState())
+    val docxEditorState: StateFlow<DocxEditorUiState> = _docxEditorState.asStateFlow()
 
     // History Flow from Room
     val historyList: StateFlow<List<ConversionEntity>> = historyRepo.allHistory
@@ -389,5 +420,267 @@ class ConverterViewModel(application: Application) : AndroidViewModel(applicatio
             )
             QualityPreset.CUSTOM -> base.copy(preset = preset)
         }
+    }
+
+    // --- DOCX Editor Actions ---
+
+    private fun safeGetUri(file: File): Uri {
+        return try {
+            FileProvider.getUriForFile(getApplication(), "com.aistudio.omniconvert.qvrp.fileprovider", file)
+        } catch (e1: Exception) {
+            try {
+                FileProvider.getUriForFile(getApplication(), "${getApplication<Application>().packageName}.fileprovider", file)
+            } catch (e2: Exception) {
+                Uri.fromFile(file)
+            }
+        }
+    }
+
+    fun openDocxForEditing(uri: Uri, title: String = "Document.docx") {
+        _docxEditorState.value = DocxEditorUiState(
+            uri = uri,
+            documentTitle = title,
+            isLoading = true
+        )
+        _currentScreen.value = AppNavScreen.DOCX_EDITOR
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val docModel = DocxEditorEngine.readDocx(getApplication(), uri)
+                withContext(Dispatchers.Main) {
+                    _docxEditorState.value = _docxEditorState.value.copy(
+                        documentTitle = docModel.title,
+                        textContent = docModel.fullText,
+                        paragraphs = docModel.paragraphs,
+                        wordCount = docModel.wordCount,
+                        charCount = docModel.characterCount,
+                        isImageBasedDocx = docModel.isImageBasedDocx,
+                        isLoading = false,
+                        isModified = false
+                    )
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    _docxEditorState.value = _docxEditorState.value.copy(
+                        isLoading = false,
+                        statusMessage = "Could not load document: ${e.localizedMessage ?: "Unknown error"}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun createNewDocxDocument(title: String = "Untitled.docx") {
+        val defaultText = "# My New Document\n\nStart typing and formatting your Word document here..."
+        val paragraphs = DocxEditorEngine.createParagraphsFromPlainText(defaultText)
+        val words = defaultText.split(Regex("\\s+")).filter { it.isNotBlank() }.size
+        _docxEditorState.value = DocxEditorUiState(
+            uri = null,
+            documentTitle = title,
+            textContent = defaultText,
+            paragraphs = paragraphs,
+            wordCount = words,
+            charCount = defaultText.length,
+            isImageBasedDocx = false,
+            isLoading = false,
+            isModified = true
+        )
+        _currentScreen.value = AppNavScreen.DOCX_EDITOR
+    }
+
+    fun updateEditorText(newText: String) {
+        val state = _docxEditorState.value
+        val words = newText.split(Regex("\\s+")).filter { it.isNotBlank() }.size
+        val paragraphs = DocxEditorEngine.createParagraphsFromPlainText(
+            text = newText,
+            isBold = state.isBold,
+            isItalic = state.isItalic,
+            isUnderline = state.isUnderline,
+            alignment = state.alignment
+        )
+        _docxEditorState.value = state.copy(
+            textContent = newText,
+            paragraphs = paragraphs,
+            wordCount = words,
+            charCount = newText.length,
+            isModified = true
+        )
+    }
+
+    fun setEditorStyle(
+        bold: Boolean? = null,
+        italic: Boolean? = null,
+        underline: Boolean? = null,
+        alignment: String? = null,
+        heading: String? = null
+    ) {
+        val current = _docxEditorState.value
+        val newBold = bold ?: current.isBold
+        val newItalic = italic ?: current.isItalic
+        val newUnderline = underline ?: current.isUnderline
+        val newAlignment = alignment ?: current.alignment
+        val newHeading = heading ?: current.activeHeading
+
+        val updatedParagraphs = DocxEditorEngine.createParagraphsFromPlainText(
+            text = current.textContent,
+            isBold = newBold,
+            isItalic = newItalic,
+            isUnderline = newUnderline,
+            alignment = newAlignment
+        )
+        _docxEditorState.value = current.copy(
+            isBold = newBold,
+            isItalic = newItalic,
+            isUnderline = newUnderline,
+            alignment = newAlignment,
+            activeHeading = newHeading,
+            paragraphs = updatedParagraphs,
+            isModified = true
+        )
+    }
+
+    fun insertBulletPrefix() {
+        val current = _docxEditorState.value
+        val newText = if (current.textContent.isEmpty() || current.textContent.endsWith("\n")) {
+            "${current.textContent}• "
+        } else {
+            "${current.textContent}\n• "
+        }
+        updateEditorText(newText)
+    }
+
+    fun insertHeadingPrefix(level: Int) {
+        val prefix = if (level == 1) "# " else "## "
+        val current = _docxEditorState.value
+        val newText = if (current.textContent.isEmpty() || current.textContent.endsWith("\n")) {
+            "${current.textContent}$prefix"
+        } else {
+            "${current.textContent}\n$prefix"
+        }
+        updateEditorText(newText)
+    }
+
+    fun saveDocxChanges() {
+        val state = _docxEditorState.value
+        _docxEditorState.value = state.copy(isSaving = true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val outDir = File(getApplication<Application>().cacheDir, "docx_edited").apply { mkdirs() }
+                val baseName = state.documentTitle.removeSuffix(".docx").ifEmpty { "edited_document" }
+                val outputFile = File(outDir, "${baseName}_edited_${System.currentTimeMillis()}.docx")
+
+                val paragraphs = DocxEditorEngine.createParagraphsFromPlainText(
+                    text = state.textContent,
+                    isBold = state.isBold,
+                    isItalic = state.isItalic,
+                    isUnderline = state.isUnderline,
+                    alignment = state.alignment
+                )
+                DocxEditorEngine.saveDocx(paragraphs, outputFile)
+                val uri = safeGetUri(outputFile)
+
+                // Record into Room history
+                historyRepo.recordConversion(
+                    ConversionEntity(
+                        id = UUID.randomUUID().toString(),
+                        fileName = outputFile.name,
+                        inputFormat = "DOCX",
+                        targetFormat = "DOCX",
+                        originalSizeBytes = state.charCount.toLong(),
+                        resultSizeBytes = outputFile.length(),
+                        durationMs = 120,
+                        resultPath = uri.toString(),
+                        status = "Saved"
+                    )
+                )
+
+                withContext(Dispatchers.Main) {
+                    _docxEditorState.value = _docxEditorState.value.copy(
+                        isSaving = false,
+                        isModified = false,
+                        savedFileUri = uri,
+                        savedFilePath = outputFile.absolutePath,
+                        statusMessage = "Document saved successfully as ${outputFile.name}"
+                    )
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    _docxEditorState.value = _docxEditorState.value.copy(
+                        isSaving = false,
+                        statusMessage = "Save failed: ${e.localizedMessage ?: "Unknown error"}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun exportDocxTo(targetExt: String) {
+        val state = _docxEditorState.value
+        _docxEditorState.value = state.copy(isSaving = true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val outDir = File(getApplication<Application>().cacheDir, "docx_exports").apply { mkdirs() }
+                val baseName = state.documentTitle.removeSuffix(".docx").ifEmpty { "document" }
+                val outputFile = File(outDir, "${baseName}_export_${System.currentTimeMillis()}.$targetExt")
+
+                val paragraphs = DocxEditorEngine.createParagraphsFromPlainText(
+                    text = state.textContent,
+                    isBold = state.isBold,
+                    isItalic = state.isItalic,
+                    isUnderline = state.isUnderline,
+                    alignment = state.alignment
+                )
+                val model = DocxEditorEngine.DocxDocumentModel(
+                    title = state.documentTitle,
+                    paragraphs = paragraphs,
+                    fullText = state.textContent,
+                    wordCount = state.wordCount,
+                    characterCount = state.charCount
+                )
+
+                when (targetExt.lowercase()) {
+                    "pdf" -> DocxEditorEngine.exportToPdf(model, outputFile)
+                    "html" -> DocxEditorEngine.exportToHtml(model, outputFile)
+                    "txt" -> outputFile.writeText(state.textContent, Charsets.UTF_8)
+                    else -> DocxEditorEngine.saveDocx(paragraphs, outputFile)
+                }
+
+                val uri = safeGetUri(outputFile)
+
+                // Record into Room history
+                historyRepo.recordConversion(
+                    ConversionEntity(
+                        id = UUID.randomUUID().toString(),
+                        fileName = outputFile.name,
+                        inputFormat = "DOCX",
+                        targetFormat = targetExt.uppercase(),
+                        originalSizeBytes = state.charCount.toLong(),
+                        resultSizeBytes = outputFile.length(),
+                        durationMs = 250,
+                        resultPath = uri.toString(),
+                        status = "Exported"
+                    )
+                )
+
+                withContext(Dispatchers.Main) {
+                    _docxEditorState.value = _docxEditorState.value.copy(
+                        isSaving = false,
+                        savedFileUri = uri,
+                        savedFilePath = outputFile.absolutePath,
+                        statusMessage = "Exported successfully as ${outputFile.name}"
+                    )
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    _docxEditorState.value = _docxEditorState.value.copy(
+                        isSaving = false,
+                        statusMessage = "Export failed: ${e.localizedMessage ?: "Unknown error"}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissEditorMessage() {
+        _docxEditorState.value = _docxEditorState.value.copy(statusMessage = null)
     }
 }

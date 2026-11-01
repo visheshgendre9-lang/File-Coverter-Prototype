@@ -193,6 +193,25 @@ fun WorkspaceScreen(
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp)
                     )
                 }
+
+                // If input is DOCX, offer direct editing
+                if (state.inputFormat?.extension?.equals("docx", ignoreCase = true) == true && state.selectedFileUri != null) {
+                    Button(
+                        onClick = {
+                            viewModel.openDocxForEditing(state.selectedFileUri!!, state.selectedFileName ?: "document.docx")
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, bottom = 14.dp)
+                            .testTag("open_input_docx_editor_button"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue)
+                    ) {
+                        Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Open & Edit in DOCX Editor", fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
 
@@ -950,6 +969,28 @@ fun WorkspaceScreen(
                                 Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("Open", fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // Direct DOCX Editor launch button if converted file is a DOCX
+                        if (job.targetFormat.extension.equals("docx", ignoreCase = true) && job.resultUri != null) {
+                            Button(
+                                onClick = {
+                                    viewModel.openDocxForEditing(
+                                        job.resultUri!!,
+                                        "${job.originalName.substringBeforeLast('.')}.docx"
+                                    )
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .testTag("edit_docx_result_button"),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = SuccessEmerald)
+                            ) {
+                                Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Open in DOCX Editor", fontWeight = FontWeight.Bold)
                             }
                         }
                     }

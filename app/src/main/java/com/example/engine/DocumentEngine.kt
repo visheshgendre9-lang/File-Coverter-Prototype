@@ -517,7 +517,8 @@ object DocumentEngine {
 
         when (targetFormat.extension) {
             "json" -> {
-                val json = DataEngine.convertData(context, inputUri, FormatRegistry.CSV, FormatRegistry.JSON, outputFile.parentFile) { }
+                val parentDir = outputFile.parentFile ?: context.cacheDir
+                val json = DataEngine.convertData(context, inputUri, FormatRegistry.CSV, FormatRegistry.JSON, parentDir) { }
                 json.copyTo(outputFile, overwrite = true)
                 json.delete()
             }
