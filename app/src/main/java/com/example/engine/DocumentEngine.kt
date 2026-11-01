@@ -38,6 +38,11 @@ object DocumentEngine {
                 renderPdfToImage(context, inputUri, outputFile, targetFormat.extension, options, onProgress)
             }
 
+            // PDF -> DOCX (each page as a picture)
+            inputFormat.extension == "pdf" && targetFormat.extension == "docx" -> {
+                convertPdfToDocx(context, inputUri, outputFile, options, onProgress)
+            }
+
             // PDF -> TXT text extraction
             inputFormat.extension == "pdf" && targetFormat.extension == "txt" -> {
                 extractTextFromPdf(context, inputUri, outputFile, onProgress)
@@ -78,6 +83,87 @@ object DocumentEngine {
         return outputFile
     }
 
+    /**
+     * How much to enlarge a PDF page (measured in points, 1/72 inch) when drawing it as a picture.
+     * Either fit the long side to a target size (2K = 2560 px, 4K = 3840 px), or render at the
+     * requested DPI and apply the optional scale slider.
+     */
+    private fun pdfRenderFactor(pageWidth: Int, pageHeight: Int, options: ConversionOptions): Float {
+        var factor = if (options.targetLongSidePx > 0) {
+            options.targetLongSidePx / maxOf(pageWidth, pageHeight).toFloat()
+        } else {
+            (options.pdfRenderDpi / 72f) * (options.scalePercent / 100f)
+        }
+
+        // Safety cap (~36 megapixels for 8K) so very large pages cannot run the phone out of memory.
+        val maxPixels = 36_000_000f
+        val requestedPixels = pageWidth.toFloat() * factor * pageHeight.toFloat() * factor
+        if (requestedPixels > maxPixels) {
+            factor *= kotlin.math.sqrt(maxPixels / requestedPixels)
+        }
+        return factor
+    }
+
+    /**
+     * PDF -> DOCX. Every PDF page is drawn as a picture on a Word page of the same size. The
+     * result looks exactly like the PDF but its text is not editable (that needs text extraction
+     * or OCR, which Android does not provide).
+     */
+    private fun convertPdfToDocx(
+        context: Context,
+        pdfUri: Uri,
+        outputFile: File,
+        options: ConversionOptions,
+        onProgress: (Float) -> Unit
+    ) {
+        val pfd: ParcelFileDescriptor = context.contentResolver.openFileDescriptor(pdfUri, "r")
+            ?: throw IllegalArgumentException("Cannot open PDF file descriptor")
+
+        val renderer = PdfRenderer(pfd)
+        try {
+            val pageCount = renderer.pageCount
+            if (pageCount == 0) throw IllegalStateException("Empty PDF document")
+
+            FileOutputStream(outputFile).buffered().use { fileOut ->
+                DocxImageDocument(fileOut).use { docx ->
+                    for (i in 0 until pageCount) {
+                        val page = renderer.openPage(i)
+                        try {
+                            val factor = pdfRenderFactor(page.width, page.height, options)
+                            val width = (page.width * factor).toInt().coerceAtLeast(100)
+                            val height = (page.height * factor).toInt().coerceAtLeast(100)
+
+                            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                            bitmap.eraseColor(Color.WHITE) // PDF backgrounds are white
+                            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+
+                            val jpeg = java.io.ByteArrayOutputStream()
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, options.qualityPercent.coerceIn(1, 100), jpeg)
+                            bitmap.recycle()
+
+                            // PDF page sizes are in points; Word pages are in twips (1 pt = 20 twips).
+                            docx.addPage(
+                                imageBytes = jpeg.toByteArray(),
+                                extension = "jpeg",
+                                imageWidthPx = width,
+                                imageHeightPx = height,
+                                pageWidthTwips = page.width * 20,
+                                pageHeightTwips = page.height * 20,
+                                marginTwips = 0
+                            )
+                        } finally {
+                            page.close()
+                        }
+                        onProgress(0.2f + 0.75f * (i + 1) / pageCount)
+                    }
+                }
+            }
+        } finally {
+            renderer.close()
+            pfd.close()
+        }
+    }
+
     private fun renderPdfToImage(
         context: Context,
         pdfUri: Uri,
@@ -95,21 +181,7 @@ object DocumentEngine {
             val page = renderer.openPage(0) // Render first page
             onProgress(0.5f)
 
-            // PDF pages are measured in points (1/72 inch), so page.width x page.height is only
-            // 72 DPI. Either fit the long side to a target size (4K = 3840 px), or render at the
-            // requested DPI and apply the optional scale slider.
-            var factor = if (options.targetLongSidePx > 0) {
-                options.targetLongSidePx / maxOf(page.width, page.height).toFloat()
-            } else {
-                (options.pdfRenderDpi / 72f) * (options.scalePercent / 100f)
-            }
-
-            // Safety cap (~36 megapixels for 8K) so very large pages cannot run the phone out of memory.
-            val maxPixels = 36_000_000f
-            val requestedPixels = page.width.toFloat() * factor * page.height.toFloat() * factor
-            if (requestedPixels > maxPixels) {
-                factor *= kotlin.math.sqrt(maxPixels / requestedPixels)
-            }
+            val factor = pdfRenderFactor(page.width, page.height, options)
 
             val width = (page.width * factor).toInt().coerceAtLeast(100)
             val height = (page.height * factor).toInt().coerceAtLeast(100)

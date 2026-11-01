@@ -89,7 +89,7 @@ object FormatRegistry {
 
     fun getCompatibleOutputs(input: FileFormat): List<FileFormat> {
         return when (input.category) {
-            FileCategory.IMAGE -> listOf(PNG, JPG, WEBP, BMP, ICO, PDF, SVG)
+            FileCategory.IMAGE -> listOf(PNG, JPG, WEBP, BMP, ICO, PDF, DOCX, SVG)
             FileCategory.AUDIO -> listOf(WAV, MP3, AAC, M4A, OGG, ZIP)
             FileCategory.VIDEO -> listOf(
                 MP4, WEBM_V,
@@ -99,7 +99,7 @@ object FormatRegistry {
                 JPG, PNG
             )
             FileCategory.DOCUMENT -> when (input) {
-                PDF -> listOf(JPG, PNG, TXT, HTML, ZIP)
+                PDF -> listOf(JPG, PNG, DOCX, TXT, HTML, ZIP)
                 HTML -> listOf(PDF, TXT, MD)
                 MD -> listOf(HTML, TXT, PDF)
                 else -> listOf(PDF, TXT, HTML, MD, ZIP)

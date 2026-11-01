@@ -86,6 +86,21 @@ object ImageEngine {
                 "pdf" -> {
                     writePdfFromImage(scaledBitmap, outStream)
                 }
+                "docx" -> {
+                    // A4 page (portrait or landscape) with a 0.5 inch margin, picture fitted inside.
+                    val landscape = scaledBitmap.width > scaledBitmap.height
+                    DocxImageDocument(outStream).use { docx ->
+                        docx.addPage(
+                            imageBytes = encodeJpegOnWhite(scaledBitmap, options.qualityPercent.coerceIn(1, 100)),
+                            extension = "jpeg",
+                            imageWidthPx = scaledBitmap.width,
+                            imageHeightPx = scaledBitmap.height,
+                            pageWidthTwips = if (landscape) 16838 else 11906,
+                            pageHeightTwips = if (landscape) 11906 else 16838,
+                            marginTwips = 720
+                        )
+                    }
+                }
                 else -> {
                     // Default to PNG
                     scaledBitmap.compress(Bitmap.CompressFormat.PNG, 100, outStream)
@@ -353,5 +368,17 @@ object ImageEngine {
 
         pdfDocument.writeTo(output)
         pdfDocument.close()
+    }
+
+    /** JPEG has no transparency, so draw the picture on white first, then compress. */
+    private fun encodeJpegOnWhite(bitmap: Bitmap, quality: Int): ByteArray {
+        val opaqueBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(opaqueBitmap)
+        canvas.drawColor(Color.WHITE)
+        canvas.drawBitmap(bitmap, 0f, 0f, null)
+        val stream = ByteArrayOutputStream()
+        opaqueBitmap.compress(Bitmap.CompressFormat.JPEG, quality.coerceIn(1, 100), stream)
+        opaqueBitmap.recycle()
+        return stream.toByteArray()
     }
 }
