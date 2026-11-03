@@ -1,79 +1,49 @@
 package com.example.ui.theme
 
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme = darkColorScheme(
+// Light blue glass look. Panels are translucent white, so the sky gradient behind them shows through.
+private val GlassColorScheme = lightColorScheme(
     primary = ElectricBlue,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFF1E3A8A),
-    onPrimaryContainer = SoftCobalt,
-    secondary = BrightCyan,
-    onSecondary = Color(0xFF083344),
-    secondaryContainer = Color(0xFF164E63),
-    onSecondaryContainer = Color(0xFFA5F3FC),
-    tertiary = AccentViolet,
-    onTertiary = Color.White,
-    background = Slate950,
-    onBackground = Slate100,
-    surface = Slate900,
-    onSurface = Slate100,
-    surfaceVariant = Slate800,
-    onSurfaceVariant = Slate400,
-    surfaceContainer = Slate800,
-    surfaceContainerHigh = Slate700,
-    outline = Slate600,
-    outlineVariant = Slate700
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = CobaltBlue,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFDBEAFE),
-    onPrimaryContainer = Color(0xFF1E3A8A),
+    primaryContainer = Color(0xFFD6E8FF),
+    onPrimaryContainer = Color(0xFF0B2A5B),
     secondary = DeepCyan,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFCFFAFE),
-    onSecondaryContainer = Color(0xFF164E63),
+    secondaryContainer = Color(0xFFD0F2FB),
+    onSecondaryContainer = Color(0xFF053B4F),
     tertiary = AccentPurple,
     onTertiary = Color.White,
-    background = Slate50,
-    onBackground = Slate900,
-    surface = Color.White,
-    onSurface = Slate900,
-    surfaceVariant = Slate100,
-    onSurfaceVariant = Slate600,
-    surfaceContainer = Slate100,
-    surfaceContainerHigh = Slate200,
-    outline = Slate400,
-    outlineVariant = Slate200
+    background = GlassSkyMid,
+    onBackground = InkNavy,
+    surface = Color(0xB3FFFFFF),
+    onSurface = InkNavy,
+    surfaceVariant = Color(0x99FFFFFF),
+    onSurfaceVariant = InkSoft,
+    // Opaque light-blue tones, used by menus and dialogs
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF7FBFF),
+    surfaceContainer = Color(0xFFF0F7FF),
+    surfaceContainerHigh = Color(0xFFE8F2FF),
+    surfaceContainerHighest = Color(0xFFDCE9FA),
+    outline = Color(0xFF8FB0D9),
+    outlineVariant = Color(0xFFCFE0F5)
 )
 
+/**
+ * The app always uses the light glass theme. [darkTheme] is kept so existing callers still compile,
+ * but it no longer changes the look.
+ */
 @Composable
 fun OmniConvertTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Keep sleek custom branding primary
+    @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = GlassColorScheme,
         typography = Typography,
         content = content
     )
